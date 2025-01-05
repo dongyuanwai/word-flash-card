@@ -66,11 +66,13 @@ const togglePlay = () => {
   isPlaying.value = !isPlaying.value
   if (isPlaying.value) {
     wordTimer = setInterval(nextWord, 6000)
+    wordStore.playWordAudio()
   } else {
     if (wordTimer) {
       clearInterval(wordTimer)
       wordTimer = null
     }
+    wordStore.stopAudio()
   }
 }
 
