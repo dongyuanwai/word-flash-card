@@ -47,3 +47,6 @@
 - 自动保存学习进度
 - 清晰的代码结构
 - 完整的类型支持 
+
+# 额外资源
+拆词网站：https://www.howmanysyllables.com/
