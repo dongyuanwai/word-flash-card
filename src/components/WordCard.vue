@@ -7,26 +7,73 @@
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onBeforeUnmount } from 'vue'
 import { WordData } from '../types/word'
 import { useWordStore } from '../stores/wordStore'
 
 interface Props {
   wordData: WordData;
   animationType?: string;
+  isPlaying: boolean;
 }
 
 const props = defineProps<Props>()
 const wordStore = useWordStore()
 const isAnimating = ref(true)
-console.log(props.wordData)
+
+// 添加触摸相关的状态
+const touchStartX = ref(0)
+const touchEndX = ref(0)
+const minSwipeDistance = 50 // 最小滑动距离
+let wordTimer: number | null = null
+
+const handleTouchStart = (event: TouchEvent) => {
+  touchStartX.value = event.touches[0].clientX
+}
+
+const handleTouchEnd = async (event: TouchEvent) => {
+  touchEndX.value = event.changedTouches[0].clientX
+  const swipeDistance = touchEndX.value - touchStartX.value
+
+  if (Math.abs(swipeDistance) >= minSwipeDistance) {
+    if (swipeDistance > 0) {
+      // 向右滑动，显示上一个单词
+      console.log('向右滑动 ⬅️ 上一个单词')
+      await wordStore.prevWord()
+    } else {
+      // 向左滑动，显示下一个单词
+      console.log('向左滑动 ➡️ 下一个单词')
+      await wordStore.nextWord()
+    }
+
+    // 等待音频播放完成后再设置定时器
+    if (props.isPlaying) {
+      if (wordTimer) clearTimeout(wordTimer)
+      // 等待音频播放完成（3遍）后再设置定时器
+      wordTimer = window.setTimeout(() => {
+        wordStore.nextWord()
+      }, 3000) // 给最后一遍播放留出足够时间
+    }
+  }
+}
+
 const playAudio = () => {
   wordStore.playWordAudio()
 }
+
+// 在组件卸载时清理定时器
+onBeforeUnmount(() => {
+  if (wordTimer) {
+    clearTimeout(wordTimer)
+  }
+})
 </script>
 
 <template>
-  <div class="word-card">
+  <div class="word-card"
+    @touchstart="handleTouchStart"
+    @touchend="handleTouchEnd"
+  >
     <div class="word-content">
       <div class="word">
         <span
@@ -66,6 +113,7 @@ const playAudio = () => {
   background: white;
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  touch-action: pan-y pinch-zoom; // 优化触摸体验
 
   .word-content {
     width: 100%;

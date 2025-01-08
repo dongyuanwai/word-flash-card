@@ -17,7 +17,8 @@
             v-if="wordStore.wordList.length > 0"
             :key="wordStore.currentIndex" 
             :wordData="wordStore.currentWord!" 
-            :animationType="currentAnimation" 
+            :animationType="currentAnimation"
+            :isPlaying="isPlaying"
           />
         </Transition>
       </div>
@@ -54,19 +55,19 @@ const goBack = () => {
   router.push('/')
 }
 
-const nextWord = () => {
-  wordStore.nextWord()
+const nextWord = async () => {
+  await wordStore.nextWord()
 }
 
 const changeAnimation = (type: string) => {
   currentAnimation.value = type
 }
 
-const togglePlay = () => {
+const togglePlay = async () => {
   isPlaying.value = !isPlaying.value
   if (isPlaying.value) {
+    await wordStore.playWordAudio()
     wordTimer = setInterval(nextWord, 6000)
-    wordStore.playWordAudio()
   } else {
     if (wordTimer) {
       clearInterval(wordTimer)
@@ -82,11 +83,9 @@ onMounted(async () => {
   // 获取单词列表
   await wordStore.fetchWords()
   // 添加延时确保单词加载完成后播放
-  setTimeout(() => {
-    if (wordStore.currentWord) {
-      wordStore.playWordAudio()
-    }
-  }, 500)
+  if (wordStore.currentWord) {
+    await wordStore.playWordAudio()
+  }
   
   if (isPlaying.value) {
     wordTimer = setInterval(nextWord, 6000)

@@ -2,7 +2,7 @@
  * @Author: dongyuanwai yuanwaidong@gmail.com
  * @Date: 2024-12-29 16:36:33
  * @LastEditors: dongyuanwai yuanwaidong@gmail.com
- * @LastEditTime: 2024-12-29 17:21:54
+ * @LastEditTime: 2025-01-08 22:31:37
  * @FilePath: \test01\src\stores\wordStore.ts
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -16,105 +16,139 @@ export const useWordStore = defineStore('word', () => {
   const wordList = ref<WordData[]>([]) // 单词列表
   const currentIndex = ref(0) // 当前单词索引
   const lastLearnedIndex = ref(0) // 上次学习的单词索引
-  const audio = ref<HTMLAudioElement>(new Audio())
+  const audioPlayer = ref<HTMLAudioElement | null>(null)
 
   // 获取器
   const currentWord = computed(() => {
-    return wordList.value[currentIndex.value] || null
+    return wordList.value[currentIndex.value]
   })
 
-  // 动作
+  // 保存学习进度
+  const saveProgress = () => {
+    localStorage.setItem('wordProgress', JSON.stringify({
+      currentIndex: currentIndex.value,
+      lastLearnedIndex: Math.max(lastLearnedIndex.value, currentIndex.value)
+    }))
+  }
+
+  // 初始化进度
+  const initProgress = () => {
+    const progress = localStorage.getItem('wordProgress')
+    if (progress) {
+      const { currentIndex: savedIndex, lastLearnedIndex: savedLastIndex } = JSON.parse(progress)
+      currentIndex.value = savedIndex
+      lastLearnedIndex.value = savedLastIndex
+    }
+  }
+
+  // 获取单词列表
   const fetchWords = async () => {
     try {
-      const response = await fetch('/A.json') // 从服务器获取数据
-      const data = await response.json()
-      if (Array.isArray(data)) {
-        wordList.value = data // 如果是数组，直接赋值
-      } else {
-        wordList.value = [data] // 如果不是数组，包装成数组
-      }
-      // 恢复上次学习位置
-      currentIndex.value = lastLearnedIndex.value
+      const response = await fetch('/A.json')
+      wordList.value = await response.json()
     } catch (error) {
-      console.error('加载单词列表失败:', error)
-      // 加载失败时使用默认单词
-      wordList.value = [{
-        initial: 'A',
-        mean: '示例词义',
-        phonetic_symbol: '/ɪɡˈzæmpəl/',
-        word: 'Example'
-      }]
+      console.error('获取单词列表失败:', error)
     }
   }
 
-  const nextWord = () => {
-    if (wordList.value.length > 0) {
-      currentIndex.value = (currentIndex.value + 1) % wordList.value.length
-      // 更新最后学习位置
-      lastLearnedIndex.value = currentIndex.value
-      // 保存到 localStorage
-      localStorage.setItem('lastLearnedIndex', currentIndex.value.toString())
-      // 切换单词后自动播放音频
-      playWordAudio()
+  // 下一个单词
+  const nextWord = async () => {
+    if (wordList.value.length === 0) return
+    
+    stopAudio()
+    
+    if (currentIndex.value < wordList.value.length - 1) {
+      currentIndex.value++
+    } else {
+      currentIndex.value = 0
     }
+    
+    await playWordAudio()
+    saveProgress()
   }
 
-  const initProgress = () => {
-    const savedIndex = localStorage.getItem('lastLearnedIndex')
-    if (savedIndex !== null) {
-      lastLearnedIndex.value = parseInt(savedIndex)
-      currentIndex.value = lastLearnedIndex.value
+  // 上一个单词
+  const prevWord = async () => {
+    if (wordList.value.length === 0) return
+    
+    stopAudio()
+    
+    if (currentIndex.value > 0) {
+      currentIndex.value--
+    } else {
+      currentIndex.value = wordList.value.length - 1
     }
+    
+    await playWordAudio()
+    saveProgress()
   }
 
-  // 修改播放音频的方法
+  // 播放音频
   const playWordAudio = async () => {
-    if (currentWord.value) {
-      const playCount = 3; // 播放次数
-      const audioUrl = `https://dict.youdao.com/dictvoice?type=0&audio=${currentWord.value.word}`;
+    if (!currentWord.value) return
+    
+    stopAudio()
+    
+    const word = currentWord.value.word.toLowerCase()
+    const audioUrl = `https://dict.youdao.com/dictvoice?audio=${word}&type=2`
+    
+    try {
+      audioPlayer.value = new Audio(audioUrl)
+      let playCount = 0
       
-      // 使用单个音频实例
-      audio.value.src = audioUrl;
-      let playedTimes = 0;
-
       return new Promise((resolve) => {
-        const playNext = () => {
-          playedTimes++;
-          if (playedTimes < playCount) {
-            audio.value.currentTime = 0;
-            audio.value.play().catch(error => {
-              console.error('播放音频失败:', error);
-            });
+        const audio = audioPlayer.value
+        if (!audio) return resolve(false)
+
+        const playNext = async () => {
+          playCount++
+          console.log(`${word} 播放次数:`, playCount)
+          
+          if (playCount >= 3) {
+            audio.removeEventListener('ended', playNext)
+            resolve(true)
           } else {
-            // 播放完成后移除事件监听
-            audio.value.removeEventListener('ended', playNext);
-            resolve(true);
+            try {
+              audio.currentTime = 0
+              await audio.play()
+            } catch (error) {
+              console.error('重复播放失败:', error)
+              audio.removeEventListener('ended', playNext)
+              resolve(false)
+            }
           }
-        };
+        }
 
-        // 添加播放结束事件监听
-        audio.value.addEventListener('ended', playNext);
-
-        // 开始第一次播放
-        audio.value.play().catch(error => {
-          console.error('播放音频失败:', error);
-          resolve(false);
-        });
-      });
+        audio.addEventListener('ended', playNext)
+        audio.play().catch(error => {
+          console.error('首次播放失败:', error)
+          resolve(false)
+        })
+      })
+    } catch (error) {
+      console.error('创建音频播放器失败:', error)
+      return Promise.resolve(false)
     }
   }
 
-  // 添加停止播放方法
+  // 停止音频
   const stopAudio = () => {
-    if (audio.value) {
-      audio.value.pause();
-      audio.value.currentTime = 0;
-      // 移除所有事件监听器
-      audio.value.removeEventListener('ended', () => {});
-      // 清空音频源
-      audio.value.src = '';
+    if (audioPlayer.value) {
+      audioPlayer.value.pause()
+      audioPlayer.value = null
     }
   }
 
-  return { wordList, currentIndex, lastLearnedIndex, currentWord, fetchWords, nextWord, initProgress, playWordAudio, stopAudio }
+  return {
+    wordList,
+    currentIndex,
+    lastLearnedIndex,
+    currentWord,
+    fetchWords,
+    nextWord,
+    prevWord,
+    initProgress,
+    playWordAudio,
+    stopAudio
+  }
 }) 
