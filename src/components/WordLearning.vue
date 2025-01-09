@@ -12,13 +12,14 @@
 
     <div class="container">
       <div class="card-container">
-        <Transition name="card">
+        <Transition :name="'card-' + slideDirection">
           <WordCard 
             v-if="wordStore.wordList.length > 0"
             :key="wordStore.currentIndex" 
             :wordData="wordStore.currentWord!" 
             :animationType="currentAnimation"
             :isPlaying="isPlaying"
+            @slide-direction-change="dir => slideDirection = dir"
           />
         </Transition>
       </div>
@@ -49,6 +50,7 @@ const wordStore = useWordStore()
 
 const currentAnimation = ref('pop')
 const isPlaying = ref(true)
+const slideDirection = ref('left')
 let wordTimer: ReturnType<typeof setInterval> | null = null
 
 const goBack = () => {
@@ -263,5 +265,79 @@ button:hover {
 
 .card-leave-to {
   transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+/* 向右滑动的动画 */
+.card-right-enter-active,
+.card-right-leave-active {
+  transition: all 0.5s ease-in-out;
+  position: absolute;
+  width: min(90%, 800px);
+  left: 50%;
+  top: 50%;
+}
+
+.card-right-enter-from {
+  transform: translate(-150%, -50%);
+  opacity: 0;
+}
+
+.card-right-enter-to {
+  transform: translate(-50%, -50%);
+  opacity: 1;
+}
+
+.card-right-leave-from {
+  transform-origin: bottom right;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+}
+
+.card-right-leave-to {
+  transform-origin: bottom right;
+  transform: translate(-50%, -50%) rotate(45deg) scale(0.8);
+  opacity: 0;
+}
+
+/* 向左滑动的动画 */
+.card-left-enter-active,
+.card-left-leave-active {
+  transition: all 0.5s ease-in-out;
+  position: absolute;
+  width: min(90%, 800px);
+  left: 50%;
+  top: 50%;
+}
+
+.card-left-enter-from {
+  transform: translate(100%, -50%);
+  opacity: 0;
+}
+
+.card-left-enter-to {
+  transform: translate(-50%, -50%);
+  opacity: 1;
+}
+
+.card-left-leave-from {
+  transform-origin: bottom left;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+}
+
+.card-left-leave-to {
+  transform-origin: bottom left;
+  transform: translate(-50%, -50%) rotate(-45deg) scale(0.8);
+  opacity: 0;
+}
+
+/* 移除旧的卡片动画样式 */
+.card-enter-active,
+.card-leave-active,
+.card-enter-from,
+.card-enter-to,
+.card-leave-from,
+.card-leave-to {
+  display: none;
 }
 </style> 

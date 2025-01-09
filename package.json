@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "一个优雅的单词学习应用，通过动画和音频帮助用户更好地记忆单词",
   "type": "module",
+  "engines": {
+    "node": "18.x"
+  },
   "author": "dongyuanwai <yuanwaidong@gmail.com>",
   "license": "MIT",
   "keywords": [

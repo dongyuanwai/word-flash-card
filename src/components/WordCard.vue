@@ -2,12 +2,12 @@
  * @Author: dongyuanwai yuanwaidong@gmail.com
  * @Date: 2024-12-28 11:13:39
  * @LastEditors: dongyuanwai yuanwaidong@gmail.com
- * @LastEditTime: 2025-01-05 17:07:28
+ * @LastEditTime: 2025-01-09 22:28:33
  * @FilePath: \test01\src\components\WordCard.vue
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
 -->
 <script setup lang="ts">
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, onBeforeUnmount, onMounted, watch,nextTick } from 'vue'
 import { WordData } from '../types/word'
 import { useWordStore } from '../stores/wordStore'
 
@@ -18,6 +18,10 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const emit = defineEmits<{
+  'slide-direction-change': [direction: 'left' | 'right']
+}>()
+
 const wordStore = useWordStore()
 const isAnimating = ref(true)
 
@@ -26,6 +30,27 @@ const touchStartX = ref(0)
 const touchEndX = ref(0)
 const minSwipeDistance = 50 // 最小滑动距离
 let wordTimer: number | null = null
+
+// 清除现有定时器
+const clearExistingTimer = () => {
+  if (wordTimer) {
+    clearTimeout(wordTimer)
+    wordTimer = null
+  }
+}
+
+// 重置自动播放定时器 - 始终向前播放
+const resetAutoPlayTimer = () => {
+  clearExistingTimer() // 先清除现有定时器
+  
+  if (props.isPlaying) {
+    wordTimer = window.setTimeout(async () => {
+      emit('slide-direction-change', 'left') // 自动播放始终向左滑动
+      await wordStore.nextWord()
+      resetAutoPlayTimer() // 设置下一个定时器
+    }, 6000)
+  }
+}
 
 const handleTouchStart = (event: TouchEvent) => {
   touchStartX.value = event.touches[0].clientX
@@ -36,36 +61,54 @@ const handleTouchEnd = async (event: TouchEvent) => {
   const swipeDistance = touchEndX.value - touchStartX.value
 
   if (Math.abs(swipeDistance) >= minSwipeDistance) {
+    clearExistingTimer() // 清除现有定时器
+    
+    // 手动滑动只切换一次
     if (swipeDistance > 0) {
       // 向右滑动，显示上一个单词
       console.log('向右滑动 ⬅️ 上一个单词')
+      emit('slide-direction-change', 'right')
       await wordStore.prevWord()
     } else {
       // 向左滑动，显示下一个单词
       console.log('向左滑动 ➡️ 下一个单词')
+      emit('slide-direction-change', 'left')
       await wordStore.nextWord()
     }
-
-    // 等待音频播放完成后再设置定时器
-    if (props.isPlaying) {
-      if (wordTimer) clearTimeout(wordTimer)
-      // 等待音频播放完成（3遍）后再设置定时器
-      wordTimer = window.setTimeout(() => {
-        wordStore.nextWord()
-      }, 3000) // 给最后一遍播放留出足够时间
-    }
+    nextTick(()=>{
+      
+      emit('slide-direction-change', 'left')
+    })
+    // 重新开始自动播放计时（始终向前）
+    resetAutoPlayTimer()
   }
 }
 
 const playAudio = () => {
   wordStore.playWordAudio()
+  clearExistingTimer() // 手动播放音频时也重置定时器
+  resetAutoPlayTimer()
 }
+
+// 监听 isPlaying 的变化
+watch(() => props.isPlaying, (newValue) => {
+  if (newValue) {
+    resetAutoPlayTimer()
+  } else {
+    clearExistingTimer()
+  }
+})
+
+// 在组件挂载时启动定时器
+onMounted(() => {
+  if (props.isPlaying) {
+    resetAutoPlayTimer()
+  }
+})
 
 // 在组件卸载时清理定时器
 onBeforeUnmount(() => {
-  if (wordTimer) {
-    clearTimeout(wordTimer)
-  }
+  clearExistingTimer()
 })
 </script>
 
